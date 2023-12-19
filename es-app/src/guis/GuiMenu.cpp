@@ -1999,32 +1999,32 @@ void GuiMenu::openColorizationConfiguration(Window* mWindow, std::string configN
 
         if (SystemData::es_features_loaded || (!SystemData::es_features_loaded && (systemData->getName() == "gb" || systemData->getName() == "gbc" || systemData->getName() == "gb2players" || systemData->getName() == "gbc2players" || systemData->getName() == "gbh" || systemData->getName() == "gbch"))) // only for gb, gbc and gb2players gbh gbch
 		{
-			colorCorrection_enabled->addRange({ { _("DEFAULT"), "" }, {_("GBC Only"), "GBC only"}, {_("Always"), "always"}, {_("Disabled"), ""} }, SystemConf::getInstance()->get(configName + ".renderer.colorcorrection"));
-			colorCorrection_mode_choices->addRange({ { _("DEFAULT"), "" }, {_("Accurate"), "accurate"}, {_("Fast"), "fast"} }, SystemConf::getInstance()->get(configName + ".renderer.colorcorrection_mode"));
-			colorCorrection_frontlight_choices->addRange({ { _("DEFAULT"), "" }, {_("Central"), "central"}, {_("Above Screen"), "above screen"}, {_("Below screen"), "below screen"} }, SystemConf::getInstance()->get(configName + ".renderer.colorcorrection_frontlightposition"));
+			guiColorization->addRange({ { _("DEFAULT"), "" }, {_("GBC Only"), "GBC only"}, {_("Always"), "always"}, {_("Disabled"), ""} }, SystemConf::getInstance()->get(configName + ".renderer.colorcorrection"));
+			guiColorization->addRange({ { _("DEFAULT"), "" }, {_("Accurate"), "accurate"}, {_("Fast"), "fast"} }, SystemConf::getInstance()->get(configName + ".renderer.colorcorrection_mode"));
+			guiColorization->addRange({ { _("DEFAULT"), "" }, {_("Central"), "central"}, {_("Above Screen"), "above screen"}, {_("Below screen"), "below screen"} }, SystemConf::getInstance()->get(configName + ".renderer.colorcorrection_frontlightposition"));
 
 
-			colorizations_choices->addWithLabel(_("GB COLORIZATION"), colorizations_choices);
-			twb1_colorizations_choices->addWithLabel(_("TWB64 - PACK 1 PALETTE"), twb1_colorizations_choices);
-			twb2_colorizations_choices->addWithLabel(_("TWB64 - PACK 2 PALETTE"), twb2_colorizations_choices);
-			twb3_colorizations_choices->addWithLabel(_("TWB64 - PACK 3 PALETTE"), twb3_colorizations_choices);
-			pixelshift1_colorizations_choices->addWithLabel(_("PIXELSHIFT - PACK 1 PALETTE"), pixelshift1_colorizations_choices);
-			colorCorrection_enabled->addWithLabel(_("COLOR CORRECTION"), colorCorrection_enabled);
-			colorCorrection_mode_choices->addWithLabel(_("COLOR CORRECTION MODE"), colorCorrection_mode_choices);
-			colorCorrection_frontlight_choices->addWithLabel(_("COLOR CORRECTION - FRONTLIGHT POSITION"), colorCorrection_frontlight_choices);
+			guiColorization->addWithLabel(_("GB COLORIZATION"), colorizations_choices);
+			guiColorization->addWithLabel(_("TWB64 - PACK 1 PALETTE"), twb1_colorizations_choices);
+			guiColorization->addWithLabel(_("TWB64 - PACK 2 PALETTE"), twb2_colorizations_choices);
+			guiColorization->addWithLabel(_("TWB64 - PACK 3 PALETTE"), twb3_colorizations_choices);
+			guiColorization->addWithLabel(_("PIXELSHIFT - PACK 1 PALETTE"), pixelshift1_colorizations_choices);
+			guiColorization->addWithLabel(_("COLOR CORRECTION"), colorCorrection_enabled);
+			guiColorization->addWithLabel(_("COLOR CORRECTION MODE"), colorCorrection_mode_choices);
+			guiColorization->addWithLabel(_("COLOR CORRECTION - FRONTLIGHT POSITION"), colorCorrection_frontlight_choices);
 
 
-			colorizations_choices->addSaveFunc([colorizations_choices, configName] { SystemConf::getInstance()->set(configName + ".renderer.colorization", colorizations_choices->getSelected()); });
-			twb1_colorizations_choices->addSaveFunc([twb1_colorizations_choices, configName] { SystemConf::getInstance()->set(configName + ".renderer.twb1_colorization", twb1_colorizations_choices->getSelected()); });
-			twb2_colorizations_choices->addSaveFunc([twb2_colorizations_choices, configName] { SystemConf::getInstance()->set(configName + ".renderer.twb2_colorization", twb2_colorizations_choices->getSelected()); });
-			twb3_colorizations_choices->addSaveFunc([twb3_colorizations_choices, configName] { SystemConf::getInstance()->set(configName + ".renderer.twb3_colorization", twb3_colorizations_choices->getSelected()); });
-			pixelshift1_colorizations_choices->addSaveFunc([pixelshift1_colorizations_choices, configName] { SystemConf::getInstance()->set(configName + ".renderer.pixelshift1_colorization", pixelshift1_colorizations_choices->getSelected()); });
-			colorCorrection_enabled->addSaveFunc([colorCorrection_enabled, configName] { SystemConf::getInstance()->set(configName + ".renderer.colorcorrection", colorCorrection_enabled->getSelected()); });
-			colorCorrection_mode_choices->addSaveFunc([colorCorrection_mode_choices, configName] { SystemConf::getInstance()->set(configName + ".renderer.colorcorrection_mode", colorCorrection_mode_choices->getSelected()); });
-			colorCorrection_frontlight_choices->addSaveFunc([colorCorrection_frontlight_choices, configName] { SystemConf::getInstance()->set(configName + ".renderer.colorcorrection_frontlightposition", colorCorrection_frontlight_choices->getSelected()); });
+			guiColorization->addSaveFunc([colorizations_choices, configName] { SystemConf::getInstance()->set(configName + ".renderer.colorization", colorizations_choices->getSelected()); });
+			guiColorization->addSaveFunc([twb1_colorizations_choices, configName] { SystemConf::getInstance()->set(configName + ".renderer.twb1_colorization", twb1_colorizations_choices->getSelected()); });
+			guiColorization->addSaveFunc([twb2_colorizations_choices, configName] { SystemConf::getInstance()->set(configName + ".renderer.twb2_colorization", twb2_colorizations_choices->getSelected()); });
+			guiColorization->addSaveFunc([twb3_colorizations_choices, configName] { SystemConf::getInstance()->set(configName + ".renderer.twb3_colorization", twb3_colorizations_choices->getSelected()); });
+			guiColorization->addSaveFunc([pixelshift1_colorizations_choices, configName] { SystemConf::getInstance()->set(configName + ".renderer.pixelshift1_colorization", pixelshift1_colorizations_choices->getSelected()); });
+			guiColorization->addSaveFunc([colorCorrection_enabled, configName] { SystemConf::getInstance()->set(configName + ".renderer.colorcorrection", colorCorrection_enabled->getSelected()); });
+			guiColorization->addSaveFunc([colorCorrection_mode_choices, configName] { SystemConf::getInstance()->set(configName + ".renderer.colorcorrection_mode", colorCorrection_mode_choices->getSelected()); });
+			guiColorization->addSaveFunc([colorCorrection_frontlight_choices, configName] { SystemConf::getInstance()->set(configName + ".renderer.colorcorrection_frontlightposition", colorCorrection_frontlight_choices->getSelected()); });
 		}
 
-	mWindow->pushGui(guiViewport);
+	mWindow->pushGui(guiColorization);
 }
 
 void GuiMenu::openRetroachievementsSettings()
