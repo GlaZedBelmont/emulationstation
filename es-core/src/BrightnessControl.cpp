@@ -146,3 +146,16 @@ bool BrightnessControl::isAvailable()
     }
 #endif
 }
+
+void BrightnessControl::init()
+{
+        int brightness = BrightnessControl::getInstance()->getBrightness();
+        auto sysbright = SystemConf::getInstance()->get("system.brightness");
+	if (sysbright.empty()) {
+		return;
+	}
+	else
+	{
+	        BrightnessControl::getInstance()->setBrightness(stoi(sysbright));
+	}
+}

@@ -65,17 +65,6 @@ void InputManager::init()
 
 	mKeyboardInputConfig = new InputConfig(DEVICE_KEYBOARD, -1, "Keyboard", KEYBOARD_GUID_STRING, 0, 0, 0); // batocera
 	loadInputConfig(mKeyboardInputConfig);
-
-	SDL_USER_CECBUTTONDOWN = SDL_RegisterEvents(2);
-	SDL_USER_CECBUTTONUP   = SDL_USER_CECBUTTONDOWN + 1;
-	CECInput::init();
-	mCECInputConfig = new InputConfig(DEVICE_CEC, -1, "CEC", CEC_GUID_STRING, 0, 0, 0); // batocera
-	loadInputConfig(mCECInputConfig);
-
-	// Mouse input, hardcoded not configurable with es_input.cfg
-	//mMouseButtonsInputConfig = new InputConfig(DEVICE_MOUSE, -1, "Mouse", CEC_GUID_STRING, 0, 0, 0);
-	//mMouseButtonsInputConfig->mapInput(BUTTON_OK, Input(DEVICE_MOUSE, TYPE_BUTTON, 1, 1, true));
-	//mMouseButtonsInputConfig->mapInput(BUTTON_BACK, Input(DEVICE_MOUSE, TYPE_BUTTON, 3, 1, true));
 }
 
 void InputManager::deinit()
@@ -120,12 +109,6 @@ InputConfig* InputManager::getInputConfigByDevice(int device)
 	if(device == DEVICE_KEYBOARD)
 		return mKeyboardInputConfig;
 
-	if(device == DEVICE_CEC)
-		return mCECInputConfig;
-
-	//if(device == DEVICE_MOUSE)
-	//	return mMouseButtonsInputConfig;
-	
 	return mInputConfigs[device];
 }
 
@@ -282,11 +265,6 @@ bool InputManager::parseEvent(const SDL_Event& ev, Window* window)
 		window->input(getInputConfigByDevice(ev.jbutton.which), Input(ev.jbutton.which, TYPE_BUTTON, ev.jbutton.button, ev.jbutton.state == SDL_PRESSED, false));
 		return true;
 	
-	//case SDL_MOUSEBUTTONDOWN:        
-	//case SDL_MOUSEBUTTONUP:
-	//	window->input(getInputConfigByDevice(DEVICE_MOUSE), Input(DEVICE_MOUSE, TYPE_BUTTON, ev.button.button, ev.type == SDL_MOUSEBUTTONDOWN, false));
-	//	return true;
-
 	case SDL_JOYHATMOTION:
 		window->input(getInputConfigByDevice(ev.jhat.which), Input(ev.jhat.which, TYPE_HAT, ev.jhat.hat, ev.jhat.value, false));
 		return true;
@@ -333,12 +311,6 @@ bool InputManager::parseEvent(const SDL_Event& ev, Window* window)
 			rebuildAllJoysticks();
 		}
 		return false;
-	}
-
-	if((ev.type == (unsigned int)SDL_USER_CECBUTTONDOWN) || (ev.type == (unsigned int)SDL_USER_CECBUTTONUP))
-	{
-		window->input(getInputConfigByDevice(DEVICE_CEC), Input(DEVICE_CEC, TYPE_CEC_BUTTON, ev.user.code, ev.type == (unsigned int)SDL_USER_CECBUTTONDOWN, false));
-		return true;
 	}
 
 	return false;
@@ -643,92 +615,119 @@ void InputManager::computeLastKnownPlayersDeviceIndexes()
 
 std::map<int, InputConfig*> InputManager::computePlayersConfigs()
 {
-	std::unique_lock<std::mutex> lock(mJoysticksLock);
+        std::unique_lock<std::mutex> lock(mJoysticksLock);
 
-	// 1. Recuperer les configurated
-	std::vector<InputConfig *> availableConfigured;
-	for (auto conf : mInputConfigs)
-		if (conf.second != nullptr && conf.second->isConfigured())
-			availableConfigured.push_back(conf.second);
+        // 1. Recuperer les configurated
+        std::vector<InputConfig *> availableConfigured;
+        for (auto conf : mInputConfigs)
+                if (conf.second != nullptr && conf.second->isConfigured())
+                        availableConfigured.push_back(conf.second);
 
-	// sort available configs
-	std::sort(availableConfigured.begin(), availableConfigured.end(), [](InputConfig * a, InputConfig * b) -> bool { return a->getDeviceIndex() < b->getDeviceIndex(); });
+        // sort available configs
+        std::sort(availableConfigured.begin(), availableConfigured.end(), [](InputConfig * a, InputConfig * b) -> bool { return a->getSortDevicePath() < b->getSortDevicePath(); });
 
-	// 2. Pour chaque joueur verifier si il y a un configurated
-	// associer le input au joueur
-	// enlever des disponibles
-	std::map<int, InputConfig*> playerJoysticks;
+        // 2. Pour chaque joueur verifier si il y a un configurated
+        // associer le input au joueur
+        // enlever des disponibles
+        std::map<int, InputConfig*> playerJoysticks;
 
-	// First loop, search for GUID + NAME. High Priority
-	for (int player = 0; player < MAX_PLAYERS; player++) 
-	{
-		std::string playerConfigName = Settings::getInstance()->getString(Utils::String::format("INPUT P%iNAME", player + 1));
-		std::string playerConfigGuid = Settings::getInstance()->getString(Utils::String::format("INPUT P%iGUID", player + 1));
+        // First loop, search for PATH. Ultra High Priority
+        for (int player = 0; player < MAX_PLAYERS; player++)
+        {
+                std::string playerConfigPath = Settings::getInstance()->getString(Utils::String::format("INPUT P%iPATH", player + 1));
+                if (!playerConfigPath.empty())
+                {
+                        for (auto it1 = availableConfigured.begin(); it1 != availableConfigured.end(); ++it1)
+                        {
+                                InputConfig* config = *it1;
+                                if (playerConfigPath == config->getSortDevicePath())
+                                {
+                                        availableConfigured.erase(it1);
+                                        playerJoysticks[player] = config;
+                                        break;
+                                }
+                        }
+                }
+        }
 
-		for (auto it1 = availableConfigured.begin(); it1 != availableConfigured.end(); ++it1)
-		{
-			InputConfig* config = *it1;
-			if (playerConfigName == config->getDeviceName() && playerConfigGuid == config->getDeviceGUIDString())
-			{
-				availableConfigured.erase(it1);
-				playerJoysticks[player] = config;
-				break;
-			}
-		}
-	}
+        // First loop, search for GUID + NAME. High Priority
+        for (int player = 0; player < MAX_PLAYERS; player++)
+        {
+                std::string playerConfigName = Settings::getInstance()->getString(Utils::String::format("INPUT P%iNAME", player + 1));
+                std::string playerConfigGuid = Settings::getInstance()->getString(Utils::String::format("INPUT P%iGUID", player + 1));
 
-	// Second loop, search for NAME. Low Priority
-	for (int player = 0; player < MAX_PLAYERS; player++) 
-	{
-		if (playerJoysticks[player] != nullptr)
-			continue;
+                for (auto it1 = availableConfigured.begin(); it1 != availableConfigured.end(); ++it1)
+                {
+                        InputConfig* config = *it1;
+                        if (playerConfigName == config->getDeviceName() && playerConfigGuid == config->getDeviceGUIDString())
+                        {
+                                availableConfigured.erase(it1);
+                                playerJoysticks[player] = config;
+                                break;
+                        }
+                }
+        }
 
-		std::string playerConfigName = Settings::getInstance()->getString(Utils::String::format("INPUT P%dNAME", player + 1));
+        // Second loop, search for NAME. Low Priority
+        for (int player = 0; player < MAX_PLAYERS; player++)
+        {
+                if (playerJoysticks[player] != nullptr)
+                        continue;
 
-		for (auto it1 = availableConfigured.begin(); it1 != availableConfigured.end(); ++it1)
-		{
-			InputConfig * config = *it1;
-			if (playerConfigName == config->getDeviceName())
-			{
-				availableConfigured.erase(it1);
-				playerJoysticks[player] = config;
-				break;
-			}
-		}
-	}
+                std::string playerConfigName = Settings::getInstance()->getString(Utils::String::format("INPUT P%dNAME", player + 1));
 
-	// Last loop, search for free controllers for remaining players.
-	for (int player = 0; player < MAX_PLAYERS; player++) 
-	{
-		if (playerJoysticks[player] != nullptr)
-			continue;
+                for (auto it1 = availableConfigured.begin(); it1 != availableConfigured.end(); ++it1)
+                {
+                        InputConfig * config = *it1;
+                        if (playerConfigName == config->getDeviceName())
+                        {
+                                availableConfigured.erase(it1);
+                                playerJoysticks[player] = config;
+                                break;
+                        }
+                }
+        }
 
-		// si aucune config a été trouvé pour le joueur, on essaie de lui filer un libre
-		for (auto it1 = availableConfigured.begin(); it1 != availableConfigured.end(); ++it1)
-		{
-			playerJoysticks[player] = *it1;
-			availableConfigured.erase(it1);
-			break;
-		}
-	}
+        // Last loop, search for free controllers for remaining players.
+        for (int player = 0; player < MAX_PLAYERS; player++)
+        {
+                if (playerJoysticks[player] != nullptr)
+                        continue;
 
-	// in case of hole (player 1 missing, but player 4 set, fill the holes with last players joysticks)
-	for (int player = 0; player < MAX_PLAYERS; player++) 
-	{
-		if (playerJoysticks[player] != nullptr)
-			continue;
+                // si aucune config a été trouvé pour le joueur, on essaie de lui filer un libre
+                for (auto it1 = availableConfigured.begin(); it1 != availableConfigured.end(); ++it1)
+                {
+                        playerJoysticks[player] = *it1;
+                        availableConfigured.erase(it1);
+                        break;
+                }
+        }
 
-		for (int repplayer = MAX_PLAYERS; repplayer > player; repplayer--) 
-		{
-			if (playerJoysticks[player] == NULL && playerJoysticks[repplayer] != NULL) 
-			{
-				playerJoysticks[player] = playerJoysticks[repplayer];
-				playerJoysticks[repplayer] = NULL;
-			}
-		}		
-	}
+        // in case of hole (player 1 missing, but player 4 set, fill the holes with last players joysticks)
+        for (int player = 0; player < MAX_PLAYERS; player++)
+        {
+                if (playerJoysticks[player] != nullptr)
+                        continue;
 
-	return playerJoysticks;
+                for (int repplayer = MAX_PLAYERS; repplayer > player; repplayer--)
+                {
+                        if (playerJoysticks[player] == NULL && playerJoysticks[repplayer] != NULL)
+                        {
+                                playerJoysticks[player] = playerJoysticks[repplayer];
+                                playerJoysticks[repplayer] = NULL;
+                        }
+                }
+        }
+
+        for (int player = 0; player < MAX_PLAYERS; player++)
+        {
+                if (playerJoysticks[player] == nullptr)
+                        continue;
+
+                LOG(LogInfo) << "computePlayersConfigs : Player " << player << " => " << playerJoysticks[player]->getDevicePath();
+        }
+
+        return playerJoysticks;
 }
 
 std::string InputManager::configureEmulators() {

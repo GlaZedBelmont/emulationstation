@@ -625,6 +625,11 @@ std::vector<std::string> ApiSystem::getAvailableChannels()
         return executeEnumerationScript("/usr/bin/sh -lc \"/usr/bin/wifictl channels\"");
 }
 
+std::vector<std::string> ApiSystem::getTdpRange()
+{
+	return executeEnumerationScript("/usr/bin/sh -lc \". /etc/profile.d/099-freqfunctions; get_tdp_range\"");
+}
+
 std::vector<std::string> ApiSystem::getAvailableThreads()
 {
         return executeEnumerationScript("/usr/bin/sh -lc \". /etc/profile.d/099-freqfunctions; get_threads\"");
@@ -632,7 +637,12 @@ std::vector<std::string> ApiSystem::getAvailableThreads()
 
 std::vector<std::string> ApiSystem::getAvailableGovernors()
 {
-	return executeEnumerationScript("/usr/bin/sh -lc \"tr \\\" \\\" \\\"\\n\\\" < /sys/devices/system/cpu/cpufreq/policy0/scaling_available_governors\" | grep [a-z]");
+	return executeEnumerationScript("/usr/bin/sh -lc \"echo \\\"default\\\"; tr \\\" \\\" \\\"\\n\\\" < /sys/devices/system/cpu/cpufreq/policy0/scaling_available_governors\" | grep [a-z]");
+}
+
+std::vector<std::string> ApiSystem::getAvailableColors()
+{
+        return executeEnumerationScript("/usr/bin/sh -lc \"/usr/bin/ledcontrol list\"");
 }
 
 std::vector<std::string> ApiSystem::getSleepModes()

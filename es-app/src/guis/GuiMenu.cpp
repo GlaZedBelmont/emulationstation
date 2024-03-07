@@ -122,6 +122,17 @@ GuiMenu::GuiMenu(Window *window, bool animate) : GuiComponent(window), mMenu(win
 		addEntry(_("GAME SETTINGS").c_str(), true, [this] { openGamesSettings_batocera(); }, "iconGames");
 		addEntry(_("GAME COLLECTION SETTINGS").c_str(), true, [this] { openCollectionSystemSettings(); }, "iconAdvanced");
 
+		if (ApiSystem::getInstance()->isScriptingSupported(ApiSystem::RETROACHIVEMENTS) &&
+		    SystemConf::getInstance()->getBool("global.retroachievements") &&
+		    Settings::getInstance()->getBool("RetroachievementsMenuitem") &&
+		    SystemConf::getInstance()->get("global.retroachievements.username") != "") {
+			addEntry(_("RETROACHIEVEMENTS").c_str(), true, [this] {
+			if (!checkNetwork()) {
+				return;
+			}
+			GuiRetroAchievements::show(mWindow); }, "iconRetroachievements");
+		}
+
 		addEntry(_("SYSTEM SETTINGS").c_str(), true, [this] { openSystemSettings_batocera(); }, "iconSystem");
 		addEntry(_("UI SETTINGS").c_str(), true, [this] { openUISettings(); }, "iconUI");
 		addEntry(controllers_settings_label.c_str(), true, [this] { openControllersSettings_batocera(); }, "iconControllers");
@@ -129,7 +140,7 @@ GuiMenu::GuiMenu(Window *window, bool animate) : GuiComponent(window), mMenu(win
 
 		if (ApiSystem::getInstance()->isScriptingSupported(ApiSystem::WIFI)) {
 			addEntry(_("NETWORK SETTINGS").c_str(), true, [this] { openNetworkSettings_batocera(); }, "iconNetwork");
-#if defined(AMD64) || defined(RK3326) || defined(RK3566) || defined(RK3566_X55) || defined(RK3588) || defined(RK3399)
+#if defined(AMD64) || defined(RK3326) || defined(RK3566) || defined(RK3566_X55) || defined(RK3588) || defined(RK3588_ACE) ||defined(RK3399)
 		  addEntry(_("MOONLIGHT GAME STREAMING").c_str(), true, [this] { GuiMoonlight::show(mWindow); }, "iconGames");
 #endif
 		}
@@ -195,27 +206,35 @@ GuiMenu::GuiMenu(Window *window, bool animate) : GuiComponent(window), mMenu(win
 	}
 }
 
-void GuiMenu::openDangerZone(Window* mWindow, std::string configName)
+void GuiMenu::openResetOptions(Window* mWindow, std::string configName)
 {
 
-	GuiSettings* dangerZone = new GuiSettings(mWindow, _("DANGER ZONE").c_str());
+	GuiSettings* resetOptions = new GuiSettings(mWindow, _("SYSTEM MANAGEMENT AND RESET").c_str());
 
-    dangerZone->addGroup(_("DATA MANAGEMENT"));
-    dangerZone->addEntry(_("BACKUP CONFIGURATIONS"), true, [mWindow] {
+    resetOptions->addGroup(_("DATA MANAGEMENT"));
+    resetOptions->addEntry(_("BACKUP CONFIGURATIONS"), true, [mWindow] {
     mWindow->pushGui(new GuiMsgBox(mWindow, _("WARNING THIS WILL RESTART EMULATIONSTATION!\n\nAFTER THE SCRIPT IS DONE REMEMBER TO COPY THE FILE /storage/roms/backup/JELOS_BACKUP.zip TO SOME PLACE SAFE OR IT WILL BE DELETED ON NEXT REBOOT!\n\nBACKUP CURRENT CONFIG AND RESTART?"), _("YES"),
 				[] {
 				runSystemCommand("/usr/bin/run \"/usr/bin/backuptool backup\"", "", nullptr);
 				}, _("NO"), nullptr));
      });
 
-    dangerZone->addEntry(_("RESTORE FROM BACKUP"), true, [mWindow] {
-    mWindow->pushGui(new GuiMsgBox(mWindow, _("WARNING THIS WILL RESTART EMULATIONSTATION AND REBOOT!\n\nYOUR EXISTING CONFIGURATION WILL BE OVERWRITTEN!\n\nRESTORE FROM BACKUP AND RESTART?"), _("YES"),
+    resetOptions->addEntry(_("RESTORE FROM BACKUP"), true, [mWindow] {
+    mWindow->pushGui(new GuiMsgBox(mWindow, _("WARNING THIS WILL REBOOT YOUR DEVICE!\n\nYOUR EXISTING CONFIGURATION WILL BE OVERWRITTEN!\n\nRESTORE FROM BACKUP AND RESTART?"), _("YES"),
 				[] {
 				runSystemCommand("/usr/bin/run \"/usr/bin/backuptool restore\"", "", nullptr);
 				}, _("NO"), nullptr));
      });
 
-    dangerZone->addEntry(_("CLEAN GAMELISTS & REMOVE UNUSED MEDIA"), true, [mWindow] {
+    resetOptions->addEntry(_("DELETE EMPTY GAME DIRECTORIES"), true, [mWindow] {
+    mWindow->pushGui(new GuiMsgBox(mWindow, _("WARNING THIS WILL REBOOT YOUR DEVICE!\n\nDELETE EMPTY GAME DIRECTORIES??"
+), _("YES"),
+                                [] {
+                                runSystemCommand("/usr/bin/run \"/usr/bin/cleanup_overlay\"", "", nullptr);
+                                }, _("NO"), nullptr));
+     });
+
+    resetOptions->addEntry(_("CLEAN GAMELISTS & REMOVE UNUSED MEDIA"), true, [mWindow] {
 	mWindow->pushGui(new GuiMsgBox(mWindow, _("ARE YOU SURE?"), _("YES"), [&]
 	{
 		int idx = 0;
@@ -227,32 +246,55 @@ void GuiMenu::openDangerZone(Window* mWindow, std::string configName)
 	}, _("NO"), nullptr));
       });
 
-    dangerZone->addGroup(_("EMULATOR MANAGEMENT"));
-    dangerZone->addEntry(_("RESET RETROARCH CONFIG TO DEFAULT"), true, [mWindow] {
-    mWindow->pushGui(new GuiMsgBox(mWindow, _("WARNING: RETROARCH CONFIG WILL RESET TO DEFAULT\n\nPER-CORE CONFIGURATIONS WILL NOT BE AFFECTED BUT NO BACKUP WILL BE CREATED!\n\nRESET RETROARCH CONFIG TO DEFAULT?"), _("YES"),
+    resetOptions->addGroup(_("EMULATOR MANAGEMENT"));
+    resetOptions->addEntry(_("RESET RETROARCH CONFIG TO DEFAULT"), true, [mWindow] {
+    mWindow->pushGui(new GuiMsgBox(mWindow, _("WARNING: RETROARCH CONFIG WILL RESET TO DEFAULT\n\nPER-CORE CONFIGURATIONS WILL NOT BE AFFECTED AND NO BACKUP WILL BE CREATED!\n\nRESET RETROARCH CONFIG TO DEFAULT?"), _("YES"),
 				[] {
 				runSystemCommand("/usr/bin/run \"/usr/bin/factoryreset retroarch\"", "", nullptr);
 				}, _("NO"), nullptr));
      });
 
+    resetOptions->addEntry(_("RESET OVERLAYS (CORES, CHEATS, JOYPADS, ETC)"), true, [mWindow] {
+    mWindow->pushGui(new GuiMsgBox(mWindow, _("WARNING: ALL CUSTOM RETROARCH OVERLAYS WILL BE REMOVED\n\nCUSTOM CORES, JOYSTICKS, CHEATS, ETC. NO BACKUP WILL BE CREATED!\n\nRESET RETROARCH OVERLAYS TO DEFAULT?"), _("YES"),
+                                [] {
+                                runSystemCommand("/usr/bin/run \"/usr/bin/factoryreset overlays\"", "", nullptr);
+                                }, _("NO"), nullptr));
+     });
+
+    resetOptions->addEntry(_("FULLY RESET RETROARCH"), true, [mWindow] {
+    mWindow->pushGui(new GuiMsgBox(mWindow, _("WARNING: RETROARCH AND ALL USER SAVED CONFIGURATIONS WILL RESET TO DEFAULT\n\nPER-CORE CONFIGURATIONS WILL BE REMOVED AND NO BACKUP WILL BE CREATED!\n\nRESET RETROARCH?"), _("YES"),
+                                [] {
+                                runSystemCommand("/usr/bin/run \"/usr/bin/factoryreset retroarch-full && /usr/bin/factoryreset overlays\"", "", nullptr);
+                                }, _("NO"), nullptr));
+     });
+
 //Only show on devices that currently support Mednafen
 #if defined(AMD64) || defined(RK3326) || defined(RK3399)
-    dangerZone->addEntry(_("RESET MEDNAFEN CONFIG TO DEFAULT"), true, [mWindow] {
+    resetOptions->addEntry(_("RESET MEDNAFEN CONFIG TO DEFAULT"), true, [mWindow] {
     mWindow->pushGui(new GuiMsgBox(mWindow, _("WARNING: MEDNAFEN CONFIG WILL RESET TO DEFAULT\n\nNO BACKUP WILL BE CREATED!\n\nRESET MEDNAFEN CONFIG TO DEFAULT?"), _("YES"),
 				[] {
 				runSystemCommand("/usr/bin/run \"/usr/bin/factoryreset mednafen\"", "", nullptr);
 				}, _("NO"), nullptr));
      });
 #endif
-    dangerZone->addGroup(_("SYSTEM MANAGEMENT"));
-    dangerZone->addEntry(_("FACTORY RESET"), true, [mWindow] {
-    mWindow->pushGui(new GuiMsgBox(mWindow, _("WARNING: YOUR DATA AND ALL OTHER CONFIGURATIONS WILL BE RESET TO DEFAULTS!\n\nIF YOU WANT TO KEEP YOUR SETTINGS MAKE A BACKUP AND SAVE IT ON AN EXTERNAL DRIVE BEFORE RUNING THIS OPTION!\n\nRESET SYSTEM AND RESTART?"), _("YES"),
+
+    resetOptions->addGroup(_("SYSTEM MANAGEMENT"));
+
+    resetOptions->addEntry(_("AUDIO RESET"), true, [mWindow] {
+    mWindow->pushGui(new GuiMsgBox(mWindow, _("WARNING: AUDIO SETTINGS WILL BE RESET TO DEFAULTS AND THE SYSTEM WILL REBOOT!\n\nRESET AUDIO AND RESTART?"), _("YES"),
+                                [] {
+                                runSystemCommand("/usr/bin/run \"/usr/bin/factoryreset audio\"", "", nullptr);
+                                }, _("NO"), nullptr));
+    });
+
+    resetOptions->addEntry(_("FACTORY RESET"), true, [mWindow] {
+    mWindow->pushGui(new GuiMsgBox(mWindow, _("WARNING: YOUR DATA AND ALL OTHER CONFIGURATIONS WILL BE RESET TO DEFAULTS!\n\nIF YOU WANT TO KEEP YOUR SETTINGS MAKE A BACKUP AND SAVE IT ON AN EXTERNAL DRIVE BEFORE RUNING THIS OPTION!\n\nEJECT YOUR GAME CARD BEFORE PROCEEDING!\n\nRESET SYSTEM AND RESTART?"), _("YES"),
 				[] {
 				runSystemCommand("/usr/bin/run \"/usr/bin/factoryreset ALL\"", "", nullptr);
 				}, _("NO"), nullptr));
      });
 
-mWindow->pushGui(dangerZone);
+mWindow->pushGui(resetOptions);
 }
 
 
@@ -909,30 +951,34 @@ void GuiMenu::openSystemSettings_batocera()
 		});
 	}
 	
-#if defined(AMD64)
         if (GetEnv("DEVICE_LED_CONTROL") == "true"){
 		s->addGroup(_("DEVICE LEDS"));
 		// Provides LED management
-		auto optionsLEDProfile = std::make_shared<OptionListComponent<std::string> >(mWindow, _("LED COLOR"), false);
-		std::string selectedLEDProfile = SystemConf::getInstance()->get("led.color");
-		if (selectedLEDProfile.empty())
-			selectedLEDProfile = "default";
+		auto optionsColors = std::make_shared<OptionListComponent<std::string> >(mWindow, _("LED COLOR"), false);
 
-		optionsLEDProfile->add(_("DEFAULT (REBOOT)"),"default", selectedLEDProfile == "default");
-		optionsLEDProfile->add(_("OFF"),"off", selectedLEDProfile == "off");
-		optionsLEDProfile->add(_("RED"),"red", selectedLEDProfile == "red");
-		optionsLEDProfile->add(_("GREEN"),"green", selectedLEDProfile == "green");
-		optionsLEDProfile->add(_("BLUE"),"blue", selectedLEDProfile == "blue");
-		optionsLEDProfile->add(_("TEAL"),"teal", selectedLEDProfile == "teal");
-		optionsLEDProfile->add(_("PURPLE"),"purple", selectedLEDProfile == "purple");
-		s->addWithLabel(_("LED COLOR"), optionsLEDProfile);
+		std::vector<std::string> availableColors = ApiSystem::getInstance()->getAvailableColors();
+		std::string selectedColors = SystemConf::getInstance()->get("led.color");
+		if (selectedColors.empty())
+			selectedColors = "default";
 
-		s->addSaveFunc([this, optionsLEDProfile, selectedLEDProfile]
+		bool lfound = false;
+		for (auto it = availableColors.begin(); it != availableColors.end(); it++)
 		{
-			if (optionsLEDProfile->changed()) {
-				SystemConf::getInstance()->set("led.color", optionsLEDProfile->getSelected());
+			optionsColors->add((*it), (*it), selectedColors == (*it));
+			if (selectedColors == (*it))
+			        lfound = true;
+		}
+		if (!lfound)
+			optionsColors->add(selectedColors, selectedColors, true);
+
+		s->addWithLabel(_("LED COLOR"), optionsColors);
+
+		s->addSaveFunc([this, optionsColors, selectedColors]
+		{
+			if (optionsColors->changed()) {
+				SystemConf::getInstance()->set("led.color", optionsColors->getSelected());
+				runSystemCommand("/usr/bin/sh -lc \"/usr/bin/ledcontrol " + optionsColors->getSelected() + "\"" , "", nullptr);
 				SystemConf::getInstance()->saveSystemConf();
-				runSystemCommand("/usr/bin/ledcontrol " + optionsLEDProfile->getSelected(), "", nullptr);
 			}
 		});
 	}
@@ -958,9 +1004,37 @@ void GuiMenu::openSystemSettings_batocera()
 	        });
 	}
 
-#endif
+        if (GetEnv("DEVICE_DTB_SWITCH") == "true"){
+        s->addGroup(_("HARDWARE /DEVICE"));
+        // Switch device dtb between the R33S & R36S
+        auto device_switch = std::make_shared<SwitchComponent>(mWindow);
+        bool deviceswitchEnabled = SystemConf::getInstance()->get("system.device-dtb-r36s") == "1";
+        device_switch->setState(deviceswitchEnabled);
+        s->addWithLabel(_("DEVICE IS R36S / R35S?"), device_switch);
+        s->addSaveFunc([this,device_switch] {
+
+                if (device_switch->changed()) {
+                std::string msg = _("The system will restart\n and user settings will be reset")+"\n";
+                msg += _("Do you want to continue?");
+
+                        mWindow->pushGui(new GuiMsgBox(mWindow,msg, _("YES"),
+                                [this,device_switch] {
+
+                                bool dswitchenabled = device_switch->getState();
+                                SystemConf::getInstance()->set("system.device-dtb-r36s", dswitchenabled ? "1" : "0");
+                                SystemConf::getInstance()->saveSystemConf();
+                                if (device_switch->getState() == false) {
+                                        runSystemCommand("/usr/bin/device-switch R33S", "", nullptr);
+                                } else {
+                                        runSystemCommand("/usr/bin/device-switch R36S", "", nullptr);
+                                }
+                        }, "NO",nullptr));
+                }
+        });
+        }
+
+	s->addGroup(_("HARDWARE / STORAGE"));
 	if (GetEnv("DEVICE_MMC_EJECT") != "false") {
-		s->addGroup(_("HARDWARE / STORAGE"));
 
 		// Provides a mechanism to disable use of the second device
 		bool MountGamesEnabled = SystemConf::getInstance()->getBool("system.automount");
@@ -970,6 +1044,7 @@ void GuiMenu::openSystemSettings_batocera()
 		mount_games->setOnChangedCallback([this, s, mount_games] {
 			SystemConf::getInstance()->setBool("system.automount", mount_games->getState());
 			SystemConf::getInstance()->saveSystemConf();
+			runSystemCommand("/usr/bin/systemctl restart jelos-automount", "", nullptr);
 		});
 
 		if (Utils::FileSystem::exists("/storage/.ms_supported") && MountGamesEnabled) 
@@ -1009,11 +1084,6 @@ void GuiMenu::openSystemSettings_batocera()
 			});
 		}
 
-		s->addEntry(_("CREATE GAME DIRECTORIES"), false, [window] {
-			runSystemCommand("systemd-tmpfiles --create /usr/config/system-dirs.conf", "", nullptr);
-			window->pushGui(new GuiMsgBox(window, _("Game directory creation complete.")));
-		});
-
 		s->addEntry(_("EJECT MICROSD CARD"), false, [window] {
 			if (Utils::FileSystem::exists("/storage/.ms_supported"))
 			{
@@ -1024,6 +1094,11 @@ void GuiMenu::openSystemSettings_batocera()
 			window->pushGui(new GuiMsgBox(window, _("You may now remove the card.")));
 		});
 	}
+
+    s->addEntry(_("CREATE GAME DIRECTORIES"), false, [window] {
+		runSystemCommand("systemd-tmpfiles --create /usr/config/system-dirs.conf", "", nullptr);
+		window->pushGui(new GuiMsgBox(window, _("Game directory creation complete.")));
+	});
 
 	s->addGroup(_("HARDWARE / PERFORMANCE"));
 
@@ -1039,11 +1114,9 @@ void GuiMenu::openSystemSettings_batocera()
 	bool wfound = false;
 	for (auto it = availableThreads.begin(); it != availableThreads.end(); it++)
 	{
-		if ( *it != "default" ) {
-			optionsThreads->add((*it), (*it), selectedThreads == (*it));
-			if (selectedThreads == (*it))
-				wfound = true;
-		}
+		optionsThreads->add((*it), (*it), selectedThreads == (*it));
+		if (selectedThreads == (*it))
+			wfound = true;
 	}
 	if (!wfound)
 		optionsThreads->add(selectedThreads, selectedThreads, true);
@@ -1088,6 +1161,7 @@ void GuiMenu::openSystemSettings_batocera()
 // Prep for additional device support.
 #if defined(AMD64)
         std::vector<std::string> cpuVendor = ApiSystem::getInstance()->getCPUVendor();
+	std::vector<std::string> tdpRange = ApiSystem::getInstance()->getTdpRange();
 	auto it = cpuVendor.begin();
 
         if (*it == "AuthenticAMD") {
@@ -1098,23 +1172,17 @@ void GuiMenu::openSystemSettings_batocera()
 		if (selectedOCProfile.empty() || selectedOCProfile == deviceTDP)
 			selectedOCProfile = "default";
 
-		if (deviceTDP) {
-			optionsOCProfile->add(_("DEVICE DEFAULT (") + deviceTDP + ")", "default", selectedOCProfile == "default");
-		} else {
-			optionsOCProfile->add(_("DEFAULT"), "default", selectedOCProfile == "default");
+		bool xfound = false;
+		for (auto it = tdpRange.begin(); it != tdpRange.end(); it++)
+		{
+			optionsOCProfile->add((*it), (*it), selectedOCProfile == (*it));
+			if (selectedOCProfile == (*it))
+				xfound = true;
 		}
 
-	        optionsOCProfile->add(_("2.5W"),"2.5w", selectedOCProfile == "2.5w");
-	        optionsOCProfile->add(_("4.5W"),"4.5w", selectedOCProfile == "4.5w");
-	        optionsOCProfile->add(_("6W"),"6w", selectedOCProfile == "6w");
-	        optionsOCProfile->add(_("9W"),"9w", selectedOCProfile == "9w");
-	        optionsOCProfile->add(_("12W"),"12w", selectedOCProfile == "12w");
-	        optionsOCProfile->add(_("15W"),"15w", selectedOCProfile == "15w");
-	        optionsOCProfile->add(_("18W"),"18w", selectedOCProfile == "18w");
-	        optionsOCProfile->add(_("22W"),"22w", selectedOCProfile == "22w");
-	        optionsOCProfile->add(_("24W"),"24w", selectedOCProfile == "24w");
-	        optionsOCProfile->add(_("28W"),"28w", selectedOCProfile == "28w");
-	        optionsOCProfile->add(_("30W"),"30w", selectedOCProfile == "30w");
+		if (!xfound)
+			optionsOCProfile->add(selectedOCProfile, selectedOCProfile, true);
+
 	 	s->addWithLabel(_("CPU TDP Max"), optionsOCProfile);
 
 		s->addSaveFunc([this, optionsOCProfile, selectedOCProfile]
@@ -1167,11 +1235,9 @@ void GuiMenu::openSystemSettings_batocera()
         bool cfound = false;
         for (auto it = availableGovernors.begin(); it != availableGovernors.end(); it++)
         {
-                if ( *it != "default" ) {
-                        optionsGovernors->add((*it), (*it), selectedGovernors == (*it));
-                        if (selectedGovernors == (*it))
-                                cfound = true;
-                }
+		optionsGovernors->add((*it), (*it), selectedGovernors == (*it));
+		if (selectedGovernors == (*it))
+			cfound = true;
         }
         if (!cfound)
                 optionsGovernors->add(selectedGovernors, selectedGovernors, true);
@@ -1211,6 +1277,24 @@ void GuiMenu::openSystemSettings_batocera()
 		}
 	});
 
+        if (GetEnv("DEVICE_TURBO_MODE") == "true"){
+                // Add option to enable turbo mode overclocking
+                auto turbo_mode = std::make_shared<SwitchComponent>(mWindow);
+                bool internalmoduleEnabled = SystemConf::getInstance()->get("enable.turbo-mode") == "1";
+                turbo_mode->setState(internalmoduleEnabled);
+                s->addWithLabel(_("ENABLE CPU OVERCLOCK"), turbo_mode);
+                turbo_mode->setOnChangedCallback([turbo_mode] {
+                if (turbo_mode->getState() == false) {
+                        runSystemCommand("/usr/bin/turbomode disable", "", nullptr);
+                } else {
+                        runSystemCommand("/usr/bin/turbomode enable", "", nullptr);
+                }
+                bool turbomode = turbo_mode->getState();
+                        SystemConf::getInstance()->set("enable.turbo-mode", turbomode ? "1" : "0");
+                        SystemConf::getInstance()->saveSystemConf();
+                });
+        }
+
 	s->addGroup(_("HARDWARE / POWER SAVING"));
         // Automatically enable or disable enhanced power saving mode
         auto enh_powersave = std::make_shared<SwitchComponent>(mWindow);
@@ -1245,6 +1329,17 @@ void GuiMenu::openSystemSettings_batocera()
 	                SystemConf::getInstance()->saveSystemConf();
 	        });
 
+		// Automatically enable or disable WIFI power saving mode
+		auto wifi_powersave = std::make_shared<SwitchComponent>(mWindow);
+		bool wifipowersaveEnabled = SystemConf::getInstance()->get("system.power.wifi") == "1";
+		wifi_powersave->setState(wifipowersaveEnabled);
+		s->addWithLabel(_("WIFI POWER SAVING"), wifi_powersave);
+		wifi_powersave->setOnChangedCallback([wifi_powersave] {
+			bool wifipowersaveEnabled = wifi_powersave->getState();
+			SystemConf::getInstance()->set("system.power.wifi", wifipowersaveEnabled ? "1" : "0");
+			SystemConf::getInstance()->saveSystemConf();
+			runSystemCommand("/usr/bin/wifictl setpowersave", "", nullptr);
+		});
 
 		auto warn = std::make_shared<TextComponent>(mWindow, "Below options can affect stability.", ThemeData::getMenuTheme()->Text.font, ThemeData::getMenuTheme()->Text.color);
 		s->addWithLabel(_("WARNING"), warn);
@@ -1280,7 +1375,7 @@ void GuiMenu::openSystemSettings_batocera()
 	}
 
 // Do not show on S922X devices yet.
-#if defined(AMD64) || defined(RK3326) || defined(RK3566) || defined(RK3566_X55) || defined(RK3588) || defined(RK3399)
+#if defined(AMD64) || defined(RK3326) || defined(RK3566) || defined(RK3566_X55) || defined(RK3588) || defined(RK3588_ACE) || defined(RK3399)
         // Allow user control over how the device sleeps
         s->addGroup(_("HARDWARE / SUSPEND"));
         auto optionsSleep = std::make_shared<OptionListComponent<std::string> >(mWindow, _("DEVICE SUSPEND MODE"), false);
@@ -1293,11 +1388,9 @@ void GuiMenu::openSystemSettings_batocera()
         bool xfound = false;
         for (auto it = availableSleepModes.begin(); it != availableSleepModes.end(); it++)
         {
-                if ( *it != "default" ) {
-                        optionsSleep->add((*it), (*it), selectedSleep == (*it));
-                        if (selectedSleep == (*it))
-                                xfound = true;
-                }
+		optionsSleep->add((*it), (*it), selectedSleep == (*it));
+		if (selectedSleep == (*it))
+			xfound = true;
         }
 
         if (!xfound)
@@ -1314,20 +1407,6 @@ void GuiMenu::openSystemSettings_batocera()
                 }
         });
 #endif
-
-	s->addGroup(_("HARDWARE / WIFI"));
-
-        // Automatically enable or disable WIFI power saving mode
-        auto wifi_powersave = std::make_shared<SwitchComponent>(mWindow);
-        bool wifipowersaveEnabled = SystemConf::getInstance()->get("system.power.wifi") == "1";
-        wifi_powersave->setState(wifipowersaveEnabled);
-        s->addWithLabel(_("ENABLE WIFI POWER SAVING"), wifi_powersave);
-        wifi_powersave->setOnChangedCallback([wifi_powersave] {
-                bool wifipowersaveEnabled = wifi_powersave->getState();
-                SystemConf::getInstance()->set("system.power.wifi", wifipowersaveEnabled ? "1" : "0");
-		SystemConf::getInstance()->saveSystemConf();
-                runSystemCommand("/usr/bin/wifictl setpowersave", "", nullptr);
-        });
 
 #ifdef RK3399
 	// Add option to disable RG552 wifi gpio
@@ -1412,8 +1491,7 @@ void GuiMenu::openSystemSettings_batocera()
 #endif
 
 	if (isFullUI){
-		//Danger zone options
-		s->addEntry(_("DANGER ZONE"), true, [this] { openDangerZone(mWindow, "global"); });
+		s->addEntry(_("SYSTEM MANAGEMENT AND RESET"), true, [this] { openResetOptions(mWindow, "global"); });
 	}
 
 	auto pthis = this;
@@ -2044,6 +2122,13 @@ void GuiMenu::openRetroachievementsSettings()
 	retroachievements->addWithLabel(_("HARDCORE MODE"), retroachievements_hardcore_enabled);
 	retroachievements->addSaveFunc([retroachievements_hardcore_enabled] { SystemConf::getInstance()->setBool("global.retroachievements.hardcore", retroachievements_hardcore_enabled->getState()); });
 
+	// retroachievements main menu option
+	auto retroachievements_menuitem = std::make_shared<SwitchComponent>(mWindow);
+	retroachievements_menuitem->setState(Settings::getInstance()->getBool("RetroachievementsMenuitem"));
+	retroachievements->addWithLabel(_("SHOW RETROACHIEVEMENTS ENTRY IN MAIN MENU"), retroachievements_menuitem);
+	retroachievements->addSaveFunc([retroachievements_menuitem] { Settings::getInstance()->setBool("RetroachievementsMenuitem", retroachievements_menuitem->getState()); });
+
+
 	//// retroachievements_leaderboards
 	//auto retroachievements_leaderboards_enabled = std::make_shared<SwitchComponent>(mWindow);
 	//retroachievements_leaderboards_enabled->setState(SystemConf::getInstance()->getBool("global.retroachievements.leaderboards"));
@@ -2325,7 +2410,7 @@ void GuiMenu::openGamesSettings_batocera()
 	s->addWithLabel(_("BILINEAR FILTERING"), smoothing_enabled);
 	s->addSaveFunc([smoothing_enabled] { SystemConf::getInstance()->set("global.smooth", smoothing_enabled->getSelected()); });
 
-#if defined(S922X) || defined(RK3588)  || defined(RK3399)
+#if defined(S922X) || defined(RK3588)  || defined(RK3588_ACE) || defined(RK3399)
         // Core chooser
         auto cores_used = std::make_shared<OptionListComponent<std::string>>(mWindow, _("CORES USED"));
         cores_used->addRange({ { _("ALL"), "all" },{ _("BIG") , "big" },{ _("LITTLE") , "little" } }, SystemConf::getInstance()->get("global.cores"));
@@ -4215,11 +4300,9 @@ void GuiMenu::openNetworkSettings_batocera(bool selectWifiEnable, bool selectAdh
         bool wfound = false;
         for (auto it = availableChannels.begin(); it != availableChannels.end(); it++)
         {
-                if ( *it != "default" ) {
-                        optionsChannels->add((*it), (*it), selectedChannel == (*it));
-                        if (selectedChannel == (*it))
-                                wfound = true;
-                }
+		optionsChannels->add((*it), (*it), selectedChannel == (*it));
+		if (selectedChannel == (*it))
+			wfound = true;
         }
 
         if (!wfound)
@@ -4309,6 +4392,49 @@ void GuiMenu::openNetworkSettings_batocera(bool selectWifiEnable, bool selectAdh
                                 SystemConf::getInstance()->saveSystemConf();
                 });
 
+     auto simple_http_enabled = std::make_shared<SwitchComponent>(mWindow);
+                bool simplehttpEnabled = SystemConf::getInstance()->get("simplehttp.enabled") == "1";
+                simple_http_enabled->setState(simplehttpEnabled);
+                s->addWithLabel(_("ENABLE SIMPLE HTTP SERVER"), simple_http_enabled);
+                simple_http_enabled->setOnChangedCallback([simple_http_enabled] {
+                        if(simple_http_enabled->getState() == false) {
+                                runSystemCommand("systemctl disable --now simple-http-server", "", nullptr);
+                        } else {
+                                runSystemCommand("systemctl enable --now simple-http-server", "", nullptr);
+                        }
+                bool simplehttpenabled = simple_http_enabled->getState();
+                SystemConf::getInstance()->set("simplehttp.enabled", simplehttpenabled ? "1" : "0");
+                                SystemConf::getInstance()->saveSystemConf();
+                });
+
+       auto optionsUSBGadget = std::make_shared<OptionListComponent<std::string> >(mWindow, _("USB GADGET FUNCTION"), false);
+                std::string selectedUSBGadget = SystemConf::getInstance()->get("usbgadget.function");
+                        if (selectedUSBGadget.empty())
+                                selectedUSBGadget = "disabled";
+
+                optionsUSBGadget->add(_("DISABLED"), "disabled", selectedUSBGadget == "disabled");
+                optionsUSBGadget->add(_("MTP"), "mtp", selectedUSBGadget == "mtp");
+                optionsUSBGadget->add(_("ECM"), "ecm", selectedUSBGadget == "ecm");
+
+                s->addWithLabel(_("USB GADGET FUNCTION"), optionsUSBGadget);
+
+                s->addSaveFunc([this, optionsUSBGadget, selectedUSBGadget]
+                {
+                        if (optionsUSBGadget->changed()) {
+                                SystemConf::getInstance()->set("usbgadget.function", optionsUSBGadget->getSelected());
+				SystemConf::getInstance()->saveSystemConf();
+                                runSystemCommand("/usr/bin/usbgadget stop", "", nullptr);
+                                        if (optionsUSBGadget->getSelected() == "mtp")
+                                                runSystemCommand("/usr/bin/usbgadget start mtp", "", nullptr);
+                                        else if (optionsUSBGadget->getSelected() == "ecm") {
+                                                runSystemCommand("/usr/bin/usbgadget start cdc", "", nullptr);
+                                                std::string usbip = std::string(getShOutput(R"(cat /storage/.cache/usbgadget/ip_address.conf)"));
+                                                mWindow->pushGui(new GuiMsgBox(mWindow, _("USB Networking enabled, the device IP is ") + usbip, _("OK"), nullptr));
+                                        }
+                        }
+                });
+
+
 
 	s->addGroup(_("CLOUD SERVICES"));
 
@@ -4358,8 +4484,8 @@ void GuiMenu::openNetworkSettings_batocera(bool selectWifiEnable, bool selectAdh
 				runSystemCommand("systemctl start connman-vpn", "", nullptr);
 				runSystemCommand("wg-quick up " + wireguardConfigFile, "", nullptr);
 			}
-      SystemConf::getInstance()->set("wireguard.up", wireguard->getState() ? "1" : "0");
-      SystemConf::getInstance()->saveSystemConf();
+			SystemConf::getInstance()->set("wireguard.up", wireguard->getState() ? "1" : "0");
+			SystemConf::getInstance()->saveSystemConf();
 		});
 	}
 
@@ -4368,7 +4494,7 @@ void GuiMenu::openNetworkSettings_batocera(bool selectWifiEnable, bool selectAdh
 	tailscale->setState(tsUp);
 	s->addWithLabel(_("TAILSCALE VPN"), tailscale);
 	tailscale->setOnChangedCallback([tailscale] {
-  	bool tsEnabled = tailscale->getState();
+  		bool tsEnabled = tailscale->getState();
 		if (tsEnabled) {
 			runSystemCommand("systemctl start tailscaled", "", nullptr);
 			runSystemCommand("tailscale up --timeout=7s", "", nullptr);
@@ -4382,12 +4508,14 @@ void GuiMenu::openNetworkSettings_batocera(bool selectWifiEnable, bool selectAdh
 	});
 
 	std::string tsUrl;
-	if (!IsTailscaleUp(&tsUrl) && !tsUrl.empty()) {
-		s->addGroup("TAILSCALE REAUTHENTICATE:");
-		s->addGroup(tsUrl);
+	if ( tsUp == true) {
+		if (!IsTailscaleUp(&tsUrl) && !tsUrl.empty()) {
+			s->addGroup("TAILSCALE REAUTHENTICATE:");
+			s->addGroup(tsUrl);
+		}
 	}
 
-    auto zerotier = std::make_shared<SwitchComponent>(mWindow);
+	auto zerotier = std::make_shared<SwitchComponent>(mWindow);
 	bool ztUp = SystemConf::getInstance()->get("zerotier.up") == "1";
 	zerotier->setState(ztUp);
 	s->addWithLabel(_("ZeroTier One"), zerotier);
@@ -4407,7 +4535,7 @@ void GuiMenu::openNetworkSettings_batocera(bool selectWifiEnable, bool selectAdh
 }
 
 bool GuiMenu::IsTailscaleUp(std::string* loginUrl) {
-  bool loggedOut = false;
+	bool loggedOut = false;
 	ApiSystem::executeScript("tailscale status", [loginUrl, &loggedOut](std::string line) {
 		 const std::string prompt = "Log in at: ";
 		 if (loginUrl && line.find(prompt) == 0)
@@ -4420,11 +4548,11 @@ bool GuiMenu::IsTailscaleUp(std::string* loginUrl) {
 
 bool GuiMenu::IsZeroTierUp(std::string* networkId) {
 	bool running = false;
-      ApiSystem::executeScript("zerotier-cli -D/storage/.config/zerotier/ info", [networkId, &running](std::string line) {
-          if (line.find("Error connecting to the ZeroTier") != std::string::npos ) running = false;
-          else running = true;
-      });
-	 return running;
+	ApiSystem::executeScript("zerotier-cli -D/storage/.config/zerotier/ info", [networkId, &running](std::string line) {
+		if (line.find("Error connecting to the ZeroTier") != std::string::npos ) running = false;
+		else running = true;
+	});
+	return running;
 }
 
 void GuiMenu::openQuitMenu_batocera()
@@ -4773,7 +4901,7 @@ void GuiMenu::popSpecificConfigurationGui(Window* mWindow, std::string title, st
 	}
 
 
-#if defined(S922X) || defined(RK3588)  || defined(RK3399)
+#if defined(S922X) || defined(RK3588)  || defined(RK3588_ACE) || defined(RK3399)
         // Core chooser
         auto cores_used = std::make_shared<OptionListComponent<std::string>>(mWindow, _("CORES USED"));
         cores_used->addRange({ { _("ALL"), "all" },{ _("BIG") , "big" },{ _("LITTLE") , "little" } }, SystemConf::getInstance()->get(configName + ".cores"));
@@ -4842,6 +4970,7 @@ void GuiMenu::popSpecificConfigurationGui(Window* mWindow, std::string title, st
 // Prep for additional device support.
 #if defined(AMD64)
         std::vector<std::string> cpuVendor = ApiSystem::getInstance()->getCPUVendor();
+	std::vector<std::string> tdpRange = ApiSystem::getInstance()->getTdpRange();
         auto it = cpuVendor.begin();
 
         if (*it == "AuthenticAMD") {
@@ -4851,18 +4980,17 @@ void GuiMenu::popSpecificConfigurationGui(Window* mWindow, std::string title, st
 	        if (selectedOCProfile.empty())
 	                selectedOCProfile = "default";
 
-		optionsOCProfile->add(_("DEFAULT"), "default", selectedOCProfile == "default");
-	        optionsOCProfile->add(_("2.5W"),"2.5w", selectedOCProfile == "2.5w");
-	        optionsOCProfile->add(_("4.5W"),"4.5w", selectedOCProfile == "4.5w");
-		optionsOCProfile->add(_("6W"),"6w", selectedOCProfile == "6w");
-	        optionsOCProfile->add(_("9W"),"9w", selectedOCProfile == "9w");
-	        optionsOCProfile->add(_("12W"),"12w", selectedOCProfile == "12w");
-	        optionsOCProfile->add(_("15W"),"15w", selectedOCProfile == "15w");
-	        optionsOCProfile->add(_("18W"),"18w", selectedOCProfile == "18w");
-	        optionsOCProfile->add(_("22W"),"22w", selectedOCProfile == "22w");
-	        optionsOCProfile->add(_("24W"),"24w", selectedOCProfile == "24w");
-	        optionsOCProfile->add(_("28W"),"28w", selectedOCProfile == "28w");
-	        optionsOCProfile->add(_("30W"),"30w", selectedOCProfile == "30w");
+		bool xfound = false;
+		for (auto it = tdpRange.begin(); it != tdpRange.end(); it++)
+		{
+			optionsOCProfile->add((*it), (*it), selectedOCProfile == (*it));
+			if (selectedOCProfile == (*it))
+				xfound = true;
+		}
+
+
+		if (!xfound)
+			optionsOCProfile->add(selectedOCProfile, selectedOCProfile, true);
 
 	        systemConfiguration->addWithLabel(_("CPU TDP Max"), optionsOCProfile);
 
@@ -4916,11 +5044,9 @@ void GuiMenu::popSpecificConfigurationGui(Window* mWindow, std::string title, st
         bool cfound = false;
         for (auto it = availableGovernors.begin(); it != availableGovernors.end(); it++)
         {
-                if ( *it != "default" ) {
-                        optionsGovernors->add((*it), (*it), selectedGovernors == (*it));
-                        if (selectedGovernors == (*it))
-                                cfound = true;
-                }
+		optionsGovernors->add((*it), (*it), selectedGovernors == (*it));
+		if (selectedGovernors == (*it))
+			cfound = true;
         }
         if (!cfound)
                 optionsGovernors->add(selectedGovernors, selectedGovernors, true);
